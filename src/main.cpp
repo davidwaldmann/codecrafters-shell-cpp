@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <vector>
 #include <sys/wait.h>
+#include <map>
+#include <functional>
 namespace fs = std::filesystem;
 
 #ifdef _WIN32
@@ -16,7 +18,15 @@ constexpr char PATH_LIST_SEPARATOR = ';';
 constexpr char PATH_LIST_SEPARATOR = ':';
 #endif
 
-const std::array<std::string, 3> BUILTINS = {"echo", "exit", "type"};
+std::string type_cmd(const std::string& args);
+
+using Builtin = std::function<std::string(std::string)>;
+const std::map<std::string, Builtin> builtins {
+        {"echo", [](std::string args){ return args + '\n'; }},
+        {"exit", [](std::string foo){ return "exit"; }},
+        {"type", type_cmd},
+        {"pwd", [](std::string foo){ return std::filesystem::current_path().string(); }}
+};
 
 std::string find_exec_in_PATH(const std::string& args) {
   const char* path_env = getenv("PATH");
@@ -37,7 +47,7 @@ std::string find_exec_in_PATH(const std::string& args) {
 
 std::string type_cmd(const std::string& args) {
   // cmd in BUILTINS-array?
-  if (std::find(BUILTINS.begin(), BUILTINS.end(), args) != BUILTINS.end())
+  if (auto search = builtins.find(args); search != builtins.end())
     return "" + args + " is a shell builtin";
   std::string executable = find_exec_in_PATH(args);
   return (executable != "") ?
@@ -77,6 +87,10 @@ int main() {
 
     else if (command == "echo") {
       std::cout << args << std::endl;
+    }
+
+    else if (command == "pwd") {
+      std::cout << std::filesystem::current_path().string() << '\n';
     }
 
     else if (std::string executable = find_exec_in_PATH(command); executable != "") {
