@@ -20,9 +20,9 @@ constexpr char PATH_LIST_SEPARATOR = ':';
 
 std::string type_cmd(const std::string& args);
 
-using Builtin = std::function<std::string(std::string)>;
-const std::map<std::string, Builtin> builtins {
-        {"echo", [](std::string args){ return args + '\n'; }},
+using Builtin = std::function<std::string(const std::string&)>;
+std::map<std::string, Builtin> builtins {
+        {"echo", [](std::string args){ return args; }},
         {"exit", [](std::string foo){ return "exit"; }},
         {"type", type_cmd},
         {"pwd", [](std::string foo){ return std::filesystem::current_path().string(); }}
@@ -55,6 +55,38 @@ std::string type_cmd(const std::string& args) {
         args + ": not found";
 }
 
+void exec_cmd(const std::string& args, const std::string& command, const std::string& executable) {
+  pid_t pid = fork();
+
+  if (pid == 0) {
+    std::stringstream sstream(args);
+    std::string arg;
+    std::vector<std::string> args_vec;
+
+    args_vec.push_back(command);
+    while (std::getline(sstream, arg, ' ')) {
+      args_vec.push_back(arg);
+    }
+    std::vector<char *> argv;
+    for (auto& s : args_vec) {
+      argv.push_back(s.data());
+    }
+    argv.push_back(nullptr);
+
+    execv(executable.c_str(), argv.data());
+
+    // Fehler in exec
+    perror("exec");
+    _exit(1);
+  }
+  else if (pid > 0) {
+    // Parent process
+    waitpid(pid, nullptr, 0);
+  }
+  else
+    perror("fork");
+}
+
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
@@ -78,51 +110,17 @@ int main() {
     else
       command = input;
 
-    if (command == "exit")
-      break;
-    
-    if (command == "type") {
-      std::cout << type_cmd(args) << '\n';
+    // Builtin Commands
+    if (auto search = builtins.find(command); search != builtins.end()) {
+      std::string out = search->second(args);
+      if (command == "exit")
+        break;
+      std::cout << out << '\n';
     }
 
-    else if (command == "echo") {
-      std::cout << args << std::endl;
-    }
-
-    else if (command == "pwd") {
-      std::cout << std::filesystem::current_path().string() << '\n';
-    }
-
+    // Executable in PATH
     else if (std::string executable = find_exec_in_PATH(command); executable != "") {
-      pid_t pid = fork();
-
-      if (pid == 0) {
-        std::stringstream sstream(args);
-        std::string arg;
-        std::vector<std::string> args_vec;
-
-        args_vec.push_back(command);
-        while (std::getline(sstream, arg, ' ')) {
-          args_vec.push_back(arg);
-        }
-        std::vector<char *> argv;
-        for (auto& s : args_vec) {
-          argv.push_back(s.data());
-        }
-        argv.push_back(nullptr);
-
-        execv(executable.c_str(), argv.data());
-
-        // Fehler in exec
-        perror("exec");
-        _exit(1);
-      }
-      else if (pid > 0) {
-        // Parent process
-        waitpid(pid, nullptr, 0);
-      }
-      else
-        perror("fork");
+      exec_cmd(args, command, executable);
     }
 
     else
