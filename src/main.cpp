@@ -88,6 +88,15 @@ void exec_cmd(const std::string& args, const std::string& command, const std::st
 }
 
 std::string cd_cmd(const std::string& args) {
+  if (args == "~") {
+    char * p = getenv("HOME");
+    if (p != nullptr) {
+      fs::current_path(p);
+      return "";
+    } else {
+      return "cd: could not get HOME path";
+    }
+  }
   if (fs::exists(args)) {
     fs::current_path(args);
     return "";
