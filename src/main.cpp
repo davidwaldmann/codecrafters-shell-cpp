@@ -17,13 +17,15 @@ constexpr char PATH_LIST_SEPARATOR = ':';
 #endif
 
 std::string type_cmd(const std::string& args);
+std::string cd_cmd(const std::string& args);
 
 using Builtin = std::function<std::string(const std::string&)>;
 std::map<std::string, Builtin> builtins {
         {"echo", [](const std::string& args){ return args; }},
         {"exit", [](const std::string&){ return ""; }},
         {"type", type_cmd},
-        {"pwd", [](const std::string&){ return std::filesystem::current_path().string(); }}
+        {"pwd", [](const std::string&){ return fs::current_path().string(); }},
+        {"cd", cd_cmd}
 };
 
 std::string find_exec_in_PATH(const std::string& command) {
@@ -85,6 +87,14 @@ void exec_cmd(const std::string& args, const std::string& command, const std::st
     perror("fork");
 }
 
+std::string cd_cmd(const std::string& args) {
+  if (fs::exists(args)) {
+    fs::current_path(args);
+    return "";
+  } else
+    return "cd: " + args + ": No such file or directory";
+}
+
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
@@ -113,7 +123,8 @@ int main() {
     // Builtin Commands
     if (auto search = builtins.find(command); search != builtins.end()) {
       std::string out = search->second(args);
-      std::cout << out << '\n';
+      if (out != "")
+        std::cout << out << '\n';
     }
 
     // Executable in PATH
