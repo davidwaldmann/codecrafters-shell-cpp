@@ -1,7 +1,5 @@
 #include <iostream>
 #include <string>
-#include <algorithm>
-#include <array>
 #include <cstdlib>
 #include <sstream>
 #include <filesystem>
@@ -22,13 +20,13 @@ std::string type_cmd(const std::string& args);
 
 using Builtin = std::function<std::string(const std::string&)>;
 std::map<std::string, Builtin> builtins {
-        {"echo", [](std::string args){ return args; }},
-        {"exit", [](std::string foo){ return "exit"; }},
+        {"echo", [](const std::string& args){ return args; }},
+        {"exit", [](const std::string&){ return ""; }},
         {"type", type_cmd},
-        {"pwd", [](std::string foo){ return std::filesystem::current_path().string(); }}
+        {"pwd", [](const std::string&){ return std::filesystem::current_path().string(); }}
 };
 
-std::string find_exec_in_PATH(const std::string& args) {
+std::string find_exec_in_PATH(const std::string& command) {
   const char* path_env = getenv("PATH");
   if (path_env == nullptr)
     return "";
@@ -38,7 +36,7 @@ std::string find_exec_in_PATH(const std::string& args) {
 
   // iterate over pathes in PATH-variable
   while (std::getline(ss_path, path, PATH_LIST_SEPARATOR)) {
-    std::string executable = path + '/' + args;
+    std::string executable = path + '/' + command;
     if (access(executable.c_str(), X_OK) != -1)
       return executable;
   }
@@ -64,7 +62,7 @@ void exec_cmd(const std::string& args, const std::string& command, const std::st
     std::vector<std::string> args_vec;
 
     args_vec.push_back(command);
-    while (std::getline(sstream, arg, ' ')) {
+    while (sstream >> arg) {
       args_vec.push_back(arg);
     }
     std::vector<char *> argv;
@@ -110,11 +108,11 @@ int main() {
     else
       command = input;
 
+    if (command == "exit")
+        break;
     // Builtin Commands
     if (auto search = builtins.find(command); search != builtins.end()) {
       std::string out = search->second(args);
-      if (command == "exit")
-        break;
       std::cout << out << '\n';
     }
 
@@ -124,7 +122,7 @@ int main() {
     }
 
     else
-      std::cout << command << ": command not found" << std::endl;
+      std::cout << command << ": command not found\n";
   }
   
 }
